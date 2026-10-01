@@ -110,10 +110,24 @@
     });
     toggleCustom();
 
+    var embedded = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+    var pageUrl = location.href.split('?')[0].split('#')[0];
+
+    function currentLoc() {
+      return place.value === '__custom' ? custom.value.trim().replace(/^"|"$/g, '') : place.value;
+    }
+    function buildSearchUrl(words, loc, kindVal) {
+      var query = [words, kindVal].filter(Boolean).join(' ');
+      return 'search-ms:displayname=' + encodeURIComponent('「' + (words || '種類で絞込') + '」の検索結果') +
+             '&crumb=location:' + encodeURIComponent(loc) +
+             '&query=' + encodeURIComponent(query);
+    }
+    var hint = document.querySelector('.hint');
+
     document.getElementById('searchForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var words = q.value.trim();
-      var loc = place.value === '__custom' ? custom.value.trim().replace(/^"|"$/g, '') : place.value;
+      var loc = currentLoc();
       if (!loc) { custom.focus(); return; }
       if (!words && !kind.value) { q.focus(); return; }
 
@@ -121,26 +135,45 @@
         localStorage.setItem('pcSearch', JSON.stringify({ place: place.value, custom: custom.value, kind: kind.value }));
       } catch (e2) {}
 
-      var query = [words, kind.value].filter(Boolean).join(' ');
-      var url = 'search-ms:displayname=' + encodeURIComponent('「' + (words || '種類で絞込') + '」の検索結果') +
-                '&crumb=location:' + encodeURIComponent(loc) +
-                '&query=' + encodeURIComponent(query);
-      if (window.self !== window.top) {
-        // Notionなどに埋め込まれている場合：枠の中からは直接開けないので新しいウィンドウ経由で開く
-        var w = null;
-        try { w = window.open(url, '_blank'); } catch (e3) {}
-        if (!w) { try { window.top.location.href = url; } catch (e4) { window.location.href = url; } }
+      if (embedded) {
+        // Notionなどの埋め込み枠からはエクスプローラーを直接開けないため、
+        // 検索条件を付けてこのページを新しいタブで開き、そちらから起動する
+        var p = '?run=1&loc=' + encodeURIComponent(loc) +
+                '&kind=' + encodeURIComponent(kind.value) +
+                '&q=' + encodeURIComponent(words);
+        window.open(pageUrl + p, '_blank', 'noopener');
       } else {
-        window.location.href = url;
+        window.location.href = buildSearchUrl(words, loc, kind.value);
       }
     });
 
-    // 埋め込み時は「別タブで開く」リンクを表示（埋め込みのままで動かない場合の逃げ道）
-    if (window.self !== window.top) {
-      var hint = document.querySelector('.hint');
-      hint.innerHTML = 'エクスプローラーの検索画面が開きます｜動かない場合は <a href="' +
-        location.href.split('#')[0] + '" target="_blank" rel="noopener" style="color:#d97757">別タブで開く</a>';
+    if (embedded) {
+      hint.textContent = '新しいタブが開き、そこからエクスプローラーの検索画面が開きます';
     }
+
+    // 埋め込みから新しいタブで開かれたとき：受け取った条件で検索を起動
+    (function () {
+      var params = new URLSearchParams(location.search);
+      if (embedded || params.get('run') !== '1') return;
+      var loc = params.get('loc') || '';
+      var words = params.get('q') || '';
+      var kindVal = params.get('kind') || '';
+      if (!loc) return;
+      q.value = words;
+      kind.value = kindVal;
+      var opt = Array.prototype.some.call(place.options, function (o) { return o.value === loc; });
+      if (opt) { place.value = loc; } else { place.value = '__custom'; custom.value = loc; }
+      toggleCustom();
+      history.replaceState(null, '', pageUrl);
+      var url = buildSearchUrl(words, loc, kindVal);
+      hint.innerHTML = '';
+      var a = document.createElement('a');
+      a.href = url;
+      a.textContent = 'エクスプローラーが開かない場合はここをクリック';
+      a.style.color = '#d97757';
+      hint.appendChild(a);
+      window.location.href = url;
+    })();
   </script>
 </body>
 </html>
