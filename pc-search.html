@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>PC内検索</title>
+<style>
+  body {
+    font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+    background: #faf9f7;
+  }
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 90%;
+    max-width: 560px;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  input[type="text"], select {
+    padding: 12px 16px;
+    font-size: 16px;
+    border: 1px solid #d9d5cd;
+    border-radius: 24px;
+    outline: none;
+    background: #fff;
+    font-family: inherit;
+  }
+  input[type="text"] { flex: 1; min-width: 0; }
+  select { font-size: 14px; cursor: pointer; }
+  input[type="text"]:focus, select:focus { border-color: #d97757; }
+  #place { flex: 1; min-width: 0; }
+  #custom { display: none; font-size: 14px; }
+  button {
+    padding: 12px 20px;
+    font-size: 14px;
+    border: none;
+    border-radius: 24px;
+    background: #d97757;
+    color: #fff;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover { background: #c9663f; }
+  .hint {
+    font-size: 12px;
+    color: #8a857c;
+    padding-left: 16px;
+  }
+</style>
+</head>
+<body>
+  <form id="searchForm">
+    <div class="row">
+      <select id="place" title="検索する場所">
+        <option value="C:\Users\alext\Downloads">ダウンロード</option>
+        <option value="C:\Users\alext\Desktop">デスクトップ</option>
+        <option value="C:\Users\alext\Documents">ドキュメント</option>
+        <option value="C:\Users\alext\作業場">作業場</option>
+        <option value="C:\Users\alext\労務系作業場">労務系作業場</option>
+        <option value="C:\Users\alext">ユーザーフォルダ全体</option>
+        <option value="C:\">Cドライブ全体</option>
+        <option value="__custom">場所を指定…</option>
+      </select>
+      <select id="kind" title="ファイルの種類">
+        <option value="">すべて</option>
+        <option value="kind:picture">画像</option>
+        <option value="ext:.pdf">PDF</option>
+        <option value="ext:(.xlsx OR .xls OR .xlsm OR .csv)">Excel</option>
+        <option value="ext:(.docx OR .doc)">Word</option>
+        <option value="kind:folder">フォルダ</option>
+      </select>
+    </div>
+    <input type="text" id="custom" placeholder="例：C:\Users\alext\Downloads\09_IT・システム" autocomplete="off">
+    <div class="row">
+      <input type="text" id="q" placeholder="PC内を検索..." autofocus autocomplete="off">
+      <button type="submit">検索</button>
+    </div>
+    <div class="hint">エクスプローラーの検索画面が開きます（サブフォルダも対象）</div>
+  </form>
+  <script>
+    var place = document.getElementById('place');
+    var custom = document.getElementById('custom');
+    var kind = document.getElementById('kind');
+    var q = document.getElementById('q');
+
+    // 前回の場所・種類を復元（使えない環境では無視）
+    try {
+      var saved = JSON.parse(localStorage.getItem('pcSearch') || '{}');
+      if (saved.place) place.value = saved.place;
+      if (saved.custom) custom.value = saved.custom;
+      if (saved.kind !== undefined) kind.value = saved.kind;
+    } catch (e) {}
+    function toggleCustom() {
+      custom.style.display = place.value === '__custom' ? 'block' : 'none';
+    }
+    place.addEventListener('change', function () {
+      toggleCustom();
+      if (place.value === '__custom') custom.focus(); else q.focus();
+    });
+    toggleCustom();
+
+    document.getElementById('searchForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var words = q.value.trim();
+      var loc = place.value === '__custom' ? custom.value.trim().replace(/^"|"$/g, '') : place.value;
+      if (!loc) { custom.focus(); return; }
+      if (!words && !kind.value) { q.focus(); return; }
+
+      try {
+        localStorage.setItem('pcSearch', JSON.stringify({ place: place.value, custom: custom.value, kind: kind.value }));
+      } catch (e2) {}
+
+      var query = [words, kind.value].filter(Boolean).join(' ');
+      var url = 'search-ms:displayname=' + encodeURIComponent('「' + (words || '種類で絞込') + '」の検索結果') +
+                '&crumb=location:' + encodeURIComponent(loc) +
+                '&query=' + encodeURIComponent(query);
+      window.location.href = url;
+    });
+  </script>
+</body>
+</html>
