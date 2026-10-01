@@ -41,7 +41,7 @@
   input[type="text"]:focus, select:focus { border-color: #d97757; }
   #place { flex: 1; min-width: 0; }
   #custom { display: none; font-size: 14px; }
-  button {
+  button, a.btn {
     padding: 12px 20px;
     font-size: 14px;
     border: none;
@@ -51,7 +51,8 @@
     cursor: pointer;
     white-space: nowrap;
   }
-  button:hover { background: #c9663f; }
+  button:hover, a.btn:hover { background: #c9663f; }
+  a.btn { text-decoration: none; display: inline-block; }
   .opt {
     font-size: 13px;
     color: #5f5a52;
@@ -165,20 +166,43 @@
       } catch (e2) {}
 
       if (embedded) {
-        // Notionなどの埋め込み枠からはエクスプローラーを直接開けないため、
-        // 検索条件を付けてこのページを新しいタブで開き、そちらから起動する
-        var p = '?run=1&loc=' + encodeURIComponent(loc) +
-                '&kind=' + encodeURIComponent(kind.value) +
-                '&name=' + (nameOnly.checked ? '1' : '0') +
-                '&q=' + encodeURIComponent(words);
-        window.open(pageUrl + p, '_blank', 'noopener');
+        // 埋め込み時はリンク（下で作成）を押した扱いにする
+        if (runLink) runLink.click();
       } else {
         window.location.href = buildSearchUrl(words, loc, kind.value, nameOnly.checked);
       }
     });
 
+    // 埋め込み時（Notionなど）：スクリプトで新しいタブを開くと止められるため、
+    // 検索ボタンを「普通のリンク」に置き換える（クリック＝利用者の操作として新しいタブで開く）
+    var runLink = null;
     if (embedded) {
-      hint.textContent = '新しいタブが開き、そこからエクスプローラーの検索画面が開きます';
+      var btn = document.querySelector('button[type="submit"]');
+      runLink = document.createElement('a');
+      runLink.className = 'btn';
+      runLink.textContent = '検索';
+      runLink.target = '_blank';
+      runLink.rel = 'noopener';
+      btn.parentNode.replaceChild(runLink, btn);
+      var refresh = function () {
+        var words = q.value.trim(), loc = currentLoc();
+        runLink.href = pageUrl + '?run=1&loc=' + encodeURIComponent(loc) +
+          '&kind=' + encodeURIComponent(kind.value) +
+          '&name=' + (nameOnly.checked ? '1' : '0') +
+          '&q=' + encodeURIComponent(words);
+      };
+      [q, custom].forEach(function (el) { el.addEventListener('input', refresh); });
+      [place, kind, nameOnly].forEach(function (el) { el.addEventListener('change', refresh); });
+      refresh();
+      runLink.addEventListener('click', function (ev) {
+        refresh();
+        if (!currentLoc()) { ev.preventDefault(); custom.focus(); return; }
+        if (!q.value.trim() && !kind.value) { ev.preventDefault(); q.focus(); return; }
+        try {
+          localStorage.setItem('pcSearch', JSON.stringify({ place: place.value, custom: custom.value, kind: kind.value, nameOnly: nameOnly.checked }));
+        } catch (e6) {}
+      });
+      hint.textContent = '検索を押すと新しいタブが開き、そこからエクスプローラーの検索画面が開きます';
     }
 
     // 埋め込みから新しいタブで開かれたとき：受け取った条件で検索を起動
