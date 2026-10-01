@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <title>PC内検索</title>
 <style>
+  html, body { height: 100%; }
   body {
+    min-height: 260px;
     font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
     display: flex;
     align-items: center;
@@ -123,8 +125,22 @@
       var url = 'search-ms:displayname=' + encodeURIComponent('「' + (words || '種類で絞込') + '」の検索結果') +
                 '&crumb=location:' + encodeURIComponent(loc) +
                 '&query=' + encodeURIComponent(query);
-      window.location.href = url;
+      if (window.self !== window.top) {
+        // Notionなどに埋め込まれている場合：枠の中からは直接開けないので新しいウィンドウ経由で開く
+        var w = null;
+        try { w = window.open(url, '_blank'); } catch (e3) {}
+        if (!w) { try { window.top.location.href = url; } catch (e4) { window.location.href = url; } }
+      } else {
+        window.location.href = url;
+      }
     });
+
+    // 埋め込み時は「別タブで開く」リンクを表示（埋め込みのままで動かない場合の逃げ道）
+    if (window.self !== window.top) {
+      var hint = document.querySelector('.hint');
+      hint.innerHTML = 'エクスプローラーの検索画面が開きます｜動かない場合は <a href="' +
+        location.href.split('#')[0] + '" target="_blank" rel="noopener" style="color:#d97757">別タブで開く</a>';
+    }
   </script>
 </body>
 </html>
