@@ -52,6 +52,25 @@
     white-space: nowrap;
   }
   button:hover { background: #c9663f; }
+  .opt {
+    font-size: 13px;
+    color: #5f5a52;
+    padding-left: 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .opt input { accent-color: #d97757; vertical-align: -2px; }
+  .go {
+    display: block;
+    text-align: center;
+    padding: 14px 20px;
+    border-radius: 24px;
+    background: #d97757;
+    color: #fff;
+    font-size: 15px;
+    text-decoration: none;
+  }
+  .go:hover { background: #c9663f; }
   .hint {
     font-size: 12px;
     color: #8a857c;
@@ -86,6 +105,7 @@
       <input type="text" id="q" placeholder="PC内を検索..." autofocus autocomplete="off">
       <button type="submit">検索</button>
     </div>
+    <label class="opt"><input type="checkbox" id="nameOnly" checked> ファイル名だけを検索（速い）／外すと中身も検索</label>
     <div class="hint">エクスプローラーの検索画面が開きます（サブフォルダも対象）</div>
   </form>
   <script>
@@ -93,6 +113,7 @@
     var custom = document.getElementById('custom');
     var kind = document.getElementById('kind');
     var q = document.getElementById('q');
+    var nameOnly = document.getElementById('nameOnly');
 
     // 前回の場所・種類を復元（使えない環境では無視）
     try {
@@ -100,6 +121,7 @@
       if (saved.place) place.value = saved.place;
       if (saved.custom) custom.value = saved.custom;
       if (saved.kind !== undefined) kind.value = saved.kind;
+      if (saved.nameOnly !== undefined) nameOnly.checked = saved.nameOnly;
     } catch (e) {}
     function toggleCustom() {
       custom.style.display = place.value === '__custom' ? 'block' : 'none';
@@ -116,8 +138,15 @@
     function currentLoc() {
       return place.value === '__custom' ? custom.value.trim().replace(/^"|"$/g, '') : place.value;
     }
-    function buildSearchUrl(words, loc, kindVal) {
-      var query = [words, kindVal].filter(Boolean).join(' ');
+    function buildSearchUrl(words, loc, kindVal, onlyName) {
+      var w = words;
+      if (onlyName && words) {
+        // 各語をファイル名だけで検索（中身を開かないので速い）
+        w = words.split(/[\s\u3000]+/).filter(Boolean).map(function (t) {
+          return 'name:' + (/[()":]/.test(t) ? '"' + t.replace(/"/g, '') + '"' : t);
+        }).join(' ');
+      }
+      var query = [w, kindVal].filter(Boolean).join(' ');
       return 'search-ms:displayname=' + encodeURIComponent('「' + (words || '種類で絞込') + '」の検索結果') +
              '&crumb=location:' + encodeURIComponent(loc) +
              '&query=' + encodeURIComponent(query);
@@ -132,7 +161,7 @@
       if (!words && !kind.value) { q.focus(); return; }
 
       try {
-        localStorage.setItem('pcSearch', JSON.stringify({ place: place.value, custom: custom.value, kind: kind.value }));
+        localStorage.setItem('pcSearch', JSON.stringify({ place: place.value, custom: custom.value, kind: kind.value, nameOnly: nameOnly.checked }));
       } catch (e2) {}
 
       if (embedded) {
@@ -140,10 +169,11 @@
         // 検索条件を付けてこのページを新しいタブで開き、そちらから起動する
         var p = '?run=1&loc=' + encodeURIComponent(loc) +
                 '&kind=' + encodeURIComponent(kind.value) +
+                '&name=' + (nameOnly.checked ? '1' : '0') +
                 '&q=' + encodeURIComponent(words);
         window.open(pageUrl + p, '_blank', 'noopener');
       } else {
-        window.location.href = buildSearchUrl(words, loc, kind.value);
+        window.location.href = buildSearchUrl(words, loc, kind.value, nameOnly.checked);
       }
     });
 
@@ -158,6 +188,8 @@
       var loc = params.get('loc') || '';
       var words = params.get('q') || '';
       var kindVal = params.get('kind') || '';
+      var onlyName = params.get('name') !== '0';
+      nameOnly.checked = onlyName;
       if (!loc) return;
       q.value = words;
       kind.value = kindVal;
@@ -165,14 +197,17 @@
       if (opt) { place.value = loc; } else { place.value = '__custom'; custom.value = loc; }
       toggleCustom();
       history.replaceState(null, '', pageUrl);
-      var url = buildSearchUrl(words, loc, kindVal);
+      var url = buildSearchUrl(words, loc, kindVal, onlyName);
+      // ブラウザは「クリックなしでのアプリ起動」を止めることがあるため、押せる大きなボタンを出す
       hint.innerHTML = '';
       var a = document.createElement('a');
       a.href = url;
-      a.textContent = 'エクスプローラーが開かない場合はここをクリック';
-      a.style.color = '#d97757';
-      hint.appendChild(a);
-      window.location.href = url;
+      a.className = 'go';
+      a.textContent = 'エクスプローラーで検索結果を開く';
+      hint.parentNode.insertBefore(a, hint);
+      hint.textContent = '自動で開かない場合は、上のボタンを押してください';
+      a.focus();
+      try { window.location.href = url; } catch (e5) {}
     })();
   </script>
 </body>
